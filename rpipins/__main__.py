@@ -25,28 +25,28 @@ https://www.raspberrypi-spy.co.uk/2022/12/pi-pico-pinout-display-on-the-command-
 __version__ = '1.0.0'
 
 PINOUT = [line.split("|") for line in """
-    |       |  |┏━━━┓|  |       |
-    |3v3    |1 |┃▣ ◎┃|2 |5v     |
-    |GPIO 2 |3 |┃◎ ◎┃|4 |5v     |
-    |GPIO 3 |5 |┃◎ ◎┃|6 |Ground |
-    |GPIO 4 |7 |┃◎ ◎┃|8 |GPIO 14|
-    |Ground |9 |┃◎ ◎┃|9 |GPIO 15|
-    |GPIO 17|11|┃◎ ◎┃|12|GPIO 18|
-    |GPIO 27|13|┃◎ ◎┃|14|Ground |
-    |GPIO 22|15|┃◎ ◎┃|16|GPIO 23|
-    |3v3    |17|┃◎ ◎┃|18|GPIO 24|
-    |GPIO 10|19|┃◎ ◎┃|20|Ground |
-    |GPIO 9 |21|┃◎ ◎┃|22|GPIO 25|
-    |GPIO 11|23|┃◎ ◎┃|24|GPIO 8 |
-    |Ground |25|┃◎ ◎┃|26|GPIO 7 |
-    |GPIO 0 |27|┃◎ ◎┃|28|GPIO 1 |
-    |GPIO 5 |29|┃◎ ◎┃|30|Ground |
-    |GPIO 6 |31|┃◎ ◎┃|32|GPIO 12|
-    |GPIO 13|33|┃◎ ◎┃|34|Ground |
-    |GPIO 19|35|┃◎ ◎┃|36|GPIO 16|
-    |GPIO 26|37|┃◎ ◎┃|38|GPIO 20|
-    |Ground |39|┃◎ ◎┃|40|GPIO 21|
-    |       |  |┗━━━┛|  |       |
+         |          |       |  |┏━━━┓|  |       |          |
+         |          |3v3    |1 |┃▣ ◎┃|2 |5v     |          |
+         |I2C1 SDA  |GPIO 2 |3 |┃◎ ◎┃|4 |5v     |          |
+         |I2C1 SCL  |GPIO 3 |5 |┃◎ ◎┃|6 |Ground |          |
+         |          |GPIO 4 |7 |┃◎ ◎┃|8 |GPIO 14|          |
+         |          |Ground |9 |┃◎ ◎┃|9 |GPIO 15|          |
+SPI1 CE1 |          |GPIO 17|11|┃◎ ◎┃|12|GPIO 18|          |SPI1 CE0
+         |          |GPIO 27|13|┃◎ ◎┃|14|Ground |          |
+         |          |GPIO 22|15|┃◎ ◎┃|16|GPIO 23|          |
+         |          |3v3    |17|┃◎ ◎┃|18|GPIO 24|          |
+SPI0 MISO|          |GPIO 10|19|┃◎ ◎┃|20|Ground |          |
+SPI0 MOSI|          |GPIO 9 |21|┃◎ ◎┃|22|GPIO 25|          |
+SPI0 SCLK|          |GPIO 11|23|┃◎ ◎┃|24|GPIO 8 |          |SPI0 CE0
+         |          |Ground |25|┃◎ ◎┃|26|GPIO 7 |          |SPI0 CE1
+         |EEPROM SDA|GPIO 0 |27|┃◎ ◎┃|28|GPIO 1 |EEPROM SCL|
+         |          |GPIO 5 |29|┃◎ ◎┃|30|Ground |          |
+         |          |GPIO 6 |31|┃◎ ◎┃|32|GPIO 12|          |
+         |          |GPIO 13|33|┃◎ ◎┃|34|Ground |          |
+SPI1 MISO|          |GPIO 19|35|┃◎ ◎┃|36|GPIO 16|          |SPI1 CE2
+         |          |GPIO 26|37|┃◎ ◎┃|38|GPIO 20|          |SPI1 MOSI
+         |          |Ground |39|┃◎ ◎┃|40|GPIO 21|          |SPI1 SCLK
+         |          |       |  |┗━━━┛|  |       |          |
 """.splitlines()[1:]]
 
 NUM_COLS = len(PINOUT[0])
@@ -57,15 +57,14 @@ LEFT_PINS = [[col.strip() for col in reversed(row[0:LEFT_COLS_END])] for row in 
 RIGHT_PINS = [[col.strip() for col in row[RIGHT_COLS_START:]] for row in PINOUT]
 DIAGRAM = [row[LEFT_COLS_END] for row in PINOUT]
 
-COLS = ["pins", "gpio"]
+COLS = ["pins", "gpio", "i2c", "spi"]
 DEBUG_COLS = ["consumer", "mode", "drive", "pull", "state"]
 NUM_DEBUG_COLS = len(DEBUG_COLS)
 
 
+# Add empty slots for the GPIO debug data
 for n in range(len(LEFT_PINS)):
-    LEFT_PINS[n].pop()
     LEFT_PINS[n] += [""] * NUM_DEBUG_COLS
-    RIGHT_PINS[n].pop()
     RIGHT_PINS[n] += [""] * NUM_DEBUG_COLS
 
 
@@ -150,8 +149,8 @@ usage: rpipins [--...] [--all] or {{{",".join(COLS[2:])}}} [--find <text>]
 
 eg:    rpipins i2c                    - show GPIO and I2C labels
        rpipins                        - basic GPIO pinout
-       rpipins --all --find "PWM3 A"  - highlight any "PWM3 A" labels
-       rpipins --all --find "PWM.* A" - highlight any PWM A channels
+       rpipins --all --find "I2C1"    - highlight any "I2C1" labels
+       rpipins --all --find "SPI* SCLK" - highlight any SPI clock pins
 
 web:   https://pinout.xyz
 bugs:  https://github.com/pinout-xyz/rpipins
