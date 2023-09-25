@@ -34,7 +34,7 @@ PINOUT = [line.split("|") for line in """
          |I2C1 SDA  |GPIO 2 |3 |┃◎ ◎┃|4 |5v     |          |
          |I2C1 SCL  |GPIO 3 |5 |┃◎ ◎┃|6 |Ground |          |
          |          |GPIO 4 |7 |┃◎ ◎┃|8 |GPIO 14|          |
-         |          |Ground |9 |┃◎ ◎┃|9 |GPIO 15|          |
+         |          |Ground |9 |┃◎ ◎┃|10|GPIO 15|          |
 SPI1 CE1 |          |GPIO 17|11|┃◎ ◎┃|12|GPIO 18|          |SPI1 CE0
          |          |GPIO 27|13|┃◎ ◎┃|14|Ground |          |
          |          |GPIO 22|15|┃◎ ◎┃|16|GPIO 23|          |
@@ -64,6 +64,7 @@ DIAGRAM = [row[LEFT_COLS_END] for row in PINOUT]
 COLS = ["pins", "gpio", "i2c", "spi"]
 DEBUG_COLS = ["consumer", "mode", "drive", "pull", "state"]
 NUM_DEBUG_COLS = len(DEBUG_COLS)
+NUM_PINS = 28
 
 
 # Add empty slots for the GPIO debug data
@@ -75,15 +76,21 @@ for n in range(len(LEFT_PINS)):
 def get_current_pin_states():
     if hasattr(gpiod, "chip"):
         chip = gpiod.chip("/dev/gpiochip4")
-        gpio_user = [line.consumer for line in gpiod.line_iter(chip) if line.offset <= 27]
+        gpio_user = [line.consumer for line in gpiod.line_iter(chip) if line.offset < NUM_PINS]
     elif hasattr(gpiod, "Chip"):
         chip = gpiod.Chip("/dev/gpiochip4")
-        gpio_user = [line.consumer() for line in gpiod.LineIter(chip) if line.offset() <= 27]
+        gpio_user = [line.consumer() for line in gpiod.LineIter(chip) if line.offset() < NUM_PINS]
     else:
-        gpio_user = [""] * 27
+        gpio_user = [""] * NUM_PINS
 
-    pinstate = subprocess.Popen(["pinctrl"], stdout=subprocess.PIPE)
-    states = [state.decode("utf8")[4:17].replace("    ", " -- ").replace(" | ", " ").split(" ") for state in pinstate.stdout.readlines()[:28]]
+    try:
+        pinstate = subprocess.Popen(["pinctrl"], stdout=subprocess.PIPE)
+        states = [state.decode("utf8")[4:17].replace("    ", " -- ").replace(" | ", " ").split(" ") for state in pinstate.stdout.readlines()[:NUM_PINS]]
+    except FileNotFoundError:
+        states = ""
+
+    if len(states) != NUM_PINS:
+        return [["--"] * NUM_DEBUG_COLS] * NUM_PINS
 
     for n, state in enumerate(states):
         state[0] = "--" if state[0] == "no" else state[0]
