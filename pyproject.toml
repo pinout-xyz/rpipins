@@ -3,7 +3,7 @@ requires = ["hatchling", "hatch-fancy-pypi-readme"]
 build-backend = "hatchling.build"
 
 [project]
-name = "picopins"
+name = "rpipins"
 dynamic = ["version", "readme"]
 description = "A command-line pinout for the Raspberry Pi Pico W"
 license = {file = "LICENSE"}
@@ -36,18 +36,18 @@ classifiers = [
 dependencies = ["rich>=13.3.5"]
 
 [project.urls]
-GitHub = "https://www.github.com/pinout-xyz/picopins"
+GitHub = "https://www.github.com/pinout-xyz/rpipins"
 Homepage = "https://pico.pinout.xyz"
 
 [project.scripts]
-picopins = "picopins.__main__:main"
+rpipins = "rpipins.__main__:main"
 
 [tool.hatch.version]
-path = "picopins/__main__.py"
+path = "rpipins/__main__.py"
 
 [tool.hatch.build]
 include = [
-    "picopins",
+    "rpipins",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"

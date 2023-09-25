@@ -1,13 +1,17 @@
 #!/bin/env python3
 import re
+import subprocess
 import sys
+import time
 
+import gpiod
 import rich
+from rich.live import Live
 from rich.panel import Panel
 from rich.table import Table
 
 """
-picopins, by @gadgetoid
+rpipins, by @gadgetoid
 
 Support me:
 https://ko-fi.com/gadgetoid
@@ -18,44 +22,94 @@ Shout-out to Raspberry Pi Spy for having almost this exact idea first:
 https://www.raspberrypi-spy.co.uk/2022/12/pi-pico-pinout-display-on-the-command-line/
 """
 
-__version__ = '1.1.0'
+__version__ = '1.0.0'
 
 PINOUT = [line.split("|") for line in """
-      |         |        |        |      |  |     ┏━━━━━┓     |  |          |        |        |         |
-      |         |        |        |      |  |┏━━━━┫     ┣━━━━┓|  |          |        |        |         |
-PWM0 A|UART0 TX |I2C0 SDA|SPI0 RX |GP0   |1 |┃◎   ┗━━━━━┛   ◎┃|40|VBUS      |        |        |         |
-PWM0 B|UART0 RX |I2C0 SCL|SPI0 CSn|GP1   |2 |┃◎ ▩           ◎┃|39|VSYS      |        |        |         |
-      |         |        |        |Ground|3 |┃▣ └─GP25      ▣┃|38|Ground    |        |        |         |
-PWM1 A|UART0 CTS|I2C1 SDA|SPI0 SCK|GP2   |4 |┃◎  ▒▒▒        ◎┃|37|3v3 En    |        |        |         |
-PWM1 B|UART0 RTS|I2C1 SCL|SPI0 TX |GP3   |5 |┃◎  ▒▒▒        ◎┃|36|3v3 Out   |        |        |         |
-PWM2 A|UART1 TX |I2C0 SDA|SPI0 RX |GP4   |6 |┃◎             ◎┃|35|ADC VRef  |        |        |         |
-PWM2 B|UART1 RX |I2C0 SCL|SPI0 CSn|GP5   |7 |┃◎             ◎┃|34|GP28 / A2 |SPI1 RX |I2C0 SDA|UART0 TX |PWM6 A
-      |         |        |        |Ground|8 |┃▣             ▣┃|33|ADC Ground|        |        |         |
-PWM3 A|UART1 CTS|I2C1 SDA|SPI0 SCK|GP6   |9 |┃◎   ▓▓▓▓▓▓▓   ◎┃|32|GP27 / A1 |SPI1 TX |I2C1 SCL|UART1 RTS|PWM5 B
-PWM3 B|UART1 RTS|I2C1 SCL|SPI0 TX |GP7   |10|┃◎   ▓▓▓▓▓▓▓   ◎┃|31|GP26 / A0 |SPI1 SCK|I2C1 SDA|UART1 CTS|PWM5 A
-PWM4 A|UART1 TX |I2C0 SDA|SPI1 RX |GP8   |11|┃◎   ▓▓▓▓▓▓▓   ◎┃|30|run       |        |        |         |
-PWM4 B|UART1 RX |I2C0 SCL|SPI1 CSn|GP9   |12|┃◎   ▓▓▓▓▓▓▓   ◎┃|29|GP22      |SPI0 SCK|I2C1 SDA|UART1 CTS|PWM3 A
-      |         |        |        |Ground|13|┃▣             ▣┃|28|Ground    |        |        |         |
-PWM5 A|UART1 CTS|I2C1 SDA|SPI1 SCK|GP10  |14|┃◎             ◎┃|27|GP21      |SPI0 CSn|I2C0 SCL|UART1 RX |PWM2 B
-PWM5 B|UART1 RTS|I2C1 SCL|SPI1 TX |GP11  |15|┃◎             ◎┃|26|GP20      |SPI0 RX |I2C0 SDA|UART1 TX |PWM2 A
-PWM6 A|UART0 TX |I2C0 SDA|SPI1 RX |GP12  |16|┃◎             ◎┃|25|GP19      |SPI0 TX |I2C1 SCL|UART0 RTS|PWM1 B
-PWM6 B|UART0 RX |I2C0 SCL|SPI1 CSn|GP13  |17|┃◎             ◎┃|24|GP18      |SPI0 SCK|I2C1 SDA|UART0 CTS|PWM1 A
-      |         |        |        |Ground|18|┃▣             ▣┃|23|Ground    |        |        |         |
-PWM7 A|UART0 CTS|I2C1 SDA|SPI1 SCK|GP14  |19|┃◎             ◎┃|22|GP17      |SPI0 CSn|I2C0 SCL|UART0 RX |PWM0 B
-PWM7 B|UART0 RTS|I2C1 SCL|SPI1 TX |GP15  |20|┃◎    ◎ ▣ ◎    ◎┃|21|GP16      |SPI0 RX |I2C0 SDA|UART0 TX |PWM0 A
-      |         |        |        |      |  |┗━━━━━━━━━━━━━━━┛|  |          |        |        |         |
+    |       |  |┏━━━┓|  |       |
+    |3v3    |1 |┃▣ ◎┃|2 |5v     |
+    |GPIO 2 |3 |┃◎ ◎┃|4 |5v     |
+    |GPIO 3 |5 |┃◎ ◎┃|6 |Ground |
+    |GPIO 4 |7 |┃◎ ◎┃|8 |GPIO 14|
+    |Ground |9 |┃◎ ◎┃|9 |GPIO 15|
+    |GPIO 17|11|┃◎ ◎┃|12|GPIO 18|
+    |GPIO 27|13|┃◎ ◎┃|14|Ground |
+    |GPIO 22|15|┃◎ ◎┃|16|GPIO 23|
+    |3v3    |17|┃◎ ◎┃|18|GPIO 24|
+    |GPIO 10|19|┃◎ ◎┃|20|Ground |
+    |GPIO 9 |21|┃◎ ◎┃|22|GPIO 25|
+    |GPIO 11|23|┃◎ ◎┃|24|GPIO 8 |
+    |Ground |25|┃◎ ◎┃|26|GPIO 7 |
+    |GPIO 0 |27|┃◎ ◎┃|28|GPIO 1 |
+    |GPIO 5 |29|┃◎ ◎┃|30|Ground |
+    |GPIO 6 |31|┃◎ ◎┃|32|GPIO 12|
+    |GPIO 13|33|┃◎ ◎┃|34|Ground |
+    |GPIO 19|35|┃◎ ◎┃|36|GPIO 16|
+    |GPIO 26|37|┃◎ ◎┃|38|GPIO 20|
+    |Ground |39|┃◎ ◎┃|40|GPIO 21|
+    |       |  |┗━━━┛|  |       |
 """.splitlines()[1:]]
 
-LEFT_PINS = [[col.strip() for col in reversed(row[0:6])] for row in PINOUT]
-RIGHT_PINS = [[col.strip() for col in row[7:]] for row in PINOUT]
-DIAGRAM = [row[6] for row in PINOUT]
+NUM_COLS = len(PINOUT[0])
+LEFT_COLS_END = int(NUM_COLS / 2)
+RIGHT_COLS_START = LEFT_COLS_END + 1
+
+LEFT_PINS = [[col.strip() for col in reversed(row[0:LEFT_COLS_END])] for row in PINOUT]
+RIGHT_PINS = [[col.strip() for col in row[RIGHT_COLS_START:]] for row in PINOUT]
+DIAGRAM = [row[LEFT_COLS_END] for row in PINOUT]
+
+COLS = ["pins", "gpio"]
+DEBUG_COLS = ["consumer", "mode", "drive", "pull", "state"]
+NUM_DEBUG_COLS = len(DEBUG_COLS)
+
+
+for n in range(len(LEFT_PINS)):
+    LEFT_PINS[n].pop()
+    LEFT_PINS[n] += [""] * NUM_DEBUG_COLS
+    RIGHT_PINS[n].pop()
+    RIGHT_PINS[n] += [""] * NUM_DEBUG_COLS
+
+
+def get_current_pin_states():
+    chip = gpiod.chip("/dev/gpiochip4")
+    gpio_user = [line.consumer for line in gpiod.line_iter(chip) if line.offset <= 27]
+
+    pinstate = subprocess.Popen(["pinctrl"], stdout=subprocess.PIPE)
+    states = [state.decode('utf8')[4:17].replace('    ', ' -- ').replace(' | ', ' ').split(' ') for state in pinstate.stdout.readlines()[:28]]
+
+    for n, state in enumerate(states):
+        state[0] = "--" if state[0] == "no" else state[0]
+        state[2] = "--" if state[2] == "pn" else state[2]
+        state.insert(0, gpio_user[n])
+
+    return states
+
+
+def gpio_add_line_state(gpio_states, row):
+    gpio = row[1]
+    if "GPIO" not in gpio:
+        return
+    gpio = int(gpio[5:])
+    changed = row[-NUM_DEBUG_COLS:] != gpio_states[gpio]
+    row[-NUM_DEBUG_COLS:] = gpio_states[gpio]
+    return changed
+
+
+def gpio_update_line_states():
+    gpio_states = get_current_pin_states()
+    changed = False
+
+    for row in LEFT_PINS:
+        changed = gpio_add_line_state(gpio_states, row) or changed
+
+    for row in RIGHT_PINS:
+        changed = gpio_add_line_state(gpio_states, row) or changed
+
+    return changed
+
 
 ROWS = len(LEFT_PINS)
-COLS = ["pins", "gpio", "spi", "i2c", "uart", "pwm"]
 COL_PIN_NUMS = 0
 COL_GPIO = 1
-
-LED_ROW = 3
 
 THEME = {
     "gpio": "#859900",
@@ -67,10 +121,14 @@ THEME = {
     "panel": "#ffffff on #000000",
     "panel_light": "#000000 on #fdf6e3",
     "diagram": "#555555",
-    "adc": "#2aa198",
+    "consumer": "#989898",
+    "mode": "#989898",
+    "drive": "#989898",
+    "pull": "#989898",
+    "state": "#989898",
     "power": "#dc322f",
     "ground": "#005b66",
-    "run": "#df8f8e",
+    "hat": "#df8f8e",
     "highlight": "bold #dc322f on white",
     "highlight_row": "bold {fg} on #444444"
 }
@@ -79,32 +137,32 @@ THEME = {
 def usage(error=None):
     error = f"\n[red]Error: {error}[/]\n" if error else ""
     rich.print(f"""
-[#859900]picopins[/] [#2aa198]v{__version__}[/] - a beautiful GPIO pinout and pin function guide for the Raspberry Pi Pico
+[#859900]rpipins[/] [#2aa198]v{__version__}[/] - a beautiful GPIO pinout and pin function guide for the Raspberry Pi Computer
 {error}
-usage: picopins [--...] [--all] or {{{",".join(COLS[2:])}}} [--find <text>]
+usage: rpipins [--...] [--all] or {{{",".join(COLS[2:])}}} [--find <text>]
        --pins          - show physical pin numbers
        --all or {{{",".join(COLS[2:])}}} - pick list of interfaces to show
        --hide-gpio     - hide GPIO pins
+       --debug         - show GPIO status
        --light         - melt your eyeballs
        --find "<text>" - highlight pins matching <text>
                          supports regex if you're feeling sassy!
 
-eg:    picopins i2c                    - show GPIO and I2C labels
-       picopins                        - basic GPIO pinout
-       picopins --all --find "PWM3 A"  - highlight any "PWM3 A" labels
-       picopins --all --find "PWM.* A" - highlight any PWM A channels
+eg:    rpipins i2c                    - show GPIO and I2C labels
+       rpipins                        - basic GPIO pinout
+       rpipins --all --find "PWM3 A"  - highlight any "PWM3 A" labels
+       rpipins --all --find "PWM.* A" - highlight any PWM A channels
 
-web:   https://pico.pinout.xyz
-bugs:  https://github.com/pinout-xyz/picopins
+web:   https://pinout.xyz
+bugs:  https://github.com/pinout-xyz/rpipins
 """)
     sys.exit(1 if error else 0)
 
 
 def gpio_style(pin):
-    if pin in (3, 8, 13, 18, 23, 28, 38): return "ground"
-    if pin in (40, 39, 37, 36): return "power"
-    if pin in (35, 34, 33, 32, 31): return "adc"
-    if pin == 30: return "run"
+    if pin in (6, 9, 14, 20, 25, 30, 34, 39): return "ground"
+    if pin in (1, 2, 4, 17): return "power"
+    if pin in (27, 28): return "hat"
     return "gpio"
 
 
@@ -154,19 +212,22 @@ def build_pins(pins, show_indexes, highlight=None):
 def build_row(row, show_indexes, highlight=None):
     for pin in build_pins(LEFT_PINS[row], show_indexes, highlight):
         yield pin + " "
-    yield " " + DIAGRAM[row]
+    diagram = list(DIAGRAM[row])
+    if LEFT_PINS[row][-1] == "hi":
+        diagram[1] = styled(diagram[1], "power")
+    yield " " + "".join(diagram)
     # We can't reverse a generator
     for pin in reversed(list(build_pins(RIGHT_PINS[row], show_indexes, highlight))):
         yield " " + pin
 
 
-def picopins(opts):
+def rpipins(opts):
     show_indexes = []
     grid = Table.grid(expand=True)
 
     for label in reversed(opts.show):
         grid.add_column(justify="left", style=THEME[label], no_wrap=True)
-        show_indexes.append(COLS.index(label))
+        show_indexes.append((COLS + DEBUG_COLS).index(label))
 
     if opts.show_gpio:
         grid.add_column(justify="right", style=THEME["gpio"], no_wrap=True)
@@ -187,27 +248,25 @@ def picopins(opts):
     for label in opts.show:
         grid.add_column(justify="left", style=THEME[label], no_wrap=True)
 
-    if search("GP25 LED", opts.find):
-        DIAGRAM[LED_ROW] = DIAGRAM[LED_ROW].replace("▩", "[blink red]▩[/]")
-        DIAGRAM[LED_ROW + 1] = DIAGRAM[LED_ROW + 1].replace("GP25", styled("GP25", "highlight"))
-
     for i in range(ROWS):
         grid.add_row(*build_row(i, show_indexes, highlight=opts.find))
 
     layout = Table.grid(expand=True)
     layout.add_row(grid)
-    layout.add_row("@gadgetoid\nhttps://pico.pinout.xyz")
+    layout.add_row("@gadgetoid\nhttps://pinout.xyz")
+    if opts.live:
+        layout.add_row("Ctrl+C to exit!")
 
     return Panel(
         layout,
-        title="Raspberry Pi Pico Pinout",
+        title="Raspberry Pi Pinout",
         expand=False,
         style=THEME["panel_light"] if opts.light_mode else THEME["panel"])
 
 
 class Options():
     def __init__(self, argv):
-        argv.pop(0)
+        self.name = argv.pop(0)
 
         if "--help" in argv:
             usage()
@@ -216,10 +275,14 @@ class Options():
             print(f"{__version__}")
             sys.exit(0)
 
+        self.fps = 60
+
         self.all = "--all" in argv
+        self.debug = "--debug" in argv
         self.show_pins = "--pins" in argv
         self.show_gpio = "--hide-gpio" not in argv
         self.light_mode = "--light" in argv
+        self.live = "--live" in argv
         self.find = None
 
         if "--find" in argv:
@@ -232,9 +295,12 @@ class Options():
         self.show = [self.valid_label(arg) for arg in argv if not arg.startswith("--")]
 
         if self.show == [] and self.all:
-            self.show = COLS[2:]
+            self.show = []  # TODO: Select relevant cols once we have some
         elif self.all:
             usage("Please use either --all or a list of interfaces.")
+
+        if self.debug:
+            self.show += DEBUG_COLS
 
     def valid_label(self, label):
         if label not in COLS[2:]:
@@ -243,7 +309,22 @@ class Options():
 
 
 def main():
-    rich.print(picopins(Options(sys.argv)))
+    #rich.print(rpipins(Options(sys.argv)))
+    options = Options(sys.argv)
+
+    gpio_update_line_states()
+
+    if options.live:
+        with Live(rpipins(options), auto_refresh=True) as live:
+            try:
+                while True:
+                    if gpio_update_line_states():
+                        live.update(rpipins(options), refresh=True)
+                    time.sleep(1.0 / options.fps)
+            except KeyboardInterrupt:
+                return 0
+    else:
+        rich.print(rpipins(options))
 
 
 if __name__ == "__main__":
