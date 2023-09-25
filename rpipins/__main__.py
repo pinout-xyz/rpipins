@@ -311,7 +311,7 @@ class Options():
         self.show = [self.valid_label(arg) for arg in argv if not arg.startswith("--")]
 
         if self.show == [] and self.all:
-            self.show = []  # TODO: Select relevant cols once we have some
+            self.show = COLS[2:]
         elif self.all:
             usage("Please use either --all or a list of interfaces.")
 
