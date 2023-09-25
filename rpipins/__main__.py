@@ -4,7 +4,11 @@ import subprocess
 import sys
 import time
 
-import gpiod
+try:
+    import gpiod
+except ImportError:
+    gpiod = None
+
 import rich
 from rich.live import Live
 from rich.panel import Panel
@@ -22,7 +26,7 @@ Shout-out to Raspberry Pi Spy for having almost this exact idea first:
 https://www.raspberrypi-spy.co.uk/2022/12/pi-pico-pinout-display-on-the-command-line/
 """
 
-__version__ = '1.0.0'
+__version__ = "1.0.0"
 
 PINOUT = [line.split("|") for line in """
          |          |       |  |┏━━━┓|  |       |          |
@@ -69,16 +73,22 @@ for n in range(len(LEFT_PINS)):
 
 
 def get_current_pin_states():
-    chip = gpiod.chip("/dev/gpiochip4")
-    gpio_user = [line.consumer for line in gpiod.line_iter(chip) if line.offset <= 27]
+    if hasattr(gpiod, "chip"):
+        chip = gpiod.chip("/dev/gpiochip4")
+        gpio_user = [line.consumer for line in gpiod.line_iter(chip) if line.offset <= 27]
+    elif hasattr(gpiod, "Chip"):
+        chip = gpiod.Chip("/dev/gpiochip4")
+        gpio_user = [line.consumer() for line in gpiod.LineIter(chip) if line.offset() <= 27]
+    else:
+        gpio_user = [""] * 27
 
     pinstate = subprocess.Popen(["pinctrl"], stdout=subprocess.PIPE)
-    states = [state.decode('utf8')[4:17].replace('    ', ' -- ').replace(' | ', ' ').split(' ') for state in pinstate.stdout.readlines()[:28]]
+    states = [state.decode("utf8")[4:17].replace("    ", " -- ").replace(" | ", " ").split(" ") for state in pinstate.stdout.readlines()[:28]]
 
     for n, state in enumerate(states):
         state[0] = "--" if state[0] == "no" else state[0]
         state[2] = "--" if state[2] == "pn" else state[2]
-        state.insert(0, gpio_user[n])
+        state.insert(0, gpio_user[n] if gpio_user[n] is not None else "")
 
     return states
 
@@ -145,7 +155,7 @@ usage: rpipins [--...] [--all] or {{{",".join(COLS[2:])}}} [--find <text>]
        --debug         - show GPIO status
        --light         - melt your eyeballs
        --find "<text>" - highlight pins matching <text>
-                         supports regex if you're feeling sassy!
+                         supports regex if you"re feeling sassy!
 
 eg:    rpipins i2c                    - show GPIO and I2C labels
        rpipins                        - basic GPIO pinout
@@ -168,7 +178,7 @@ def gpio_style(pin):
 def styled(label, style, fg=None):
     style = THEME[style]
     style = style.format(fg=fg)
-    return f'[{style}]{label}[/]'
+    return f"[{style}]{label}[/]"
 
 
 def search(pin, highlight):
@@ -215,7 +225,7 @@ def build_row(row, show_indexes, highlight=None):
     if LEFT_PINS[row][-1] == "hi":
         diagram[1] = styled(diagram[1], "power")
     yield " " + "".join(diagram)
-    # We can't reverse a generator
+    # We can"t reverse a generator
     for pin in reversed(list(build_pins(RIGHT_PINS[row], show_indexes, highlight))):
         yield " " + pin
 
@@ -321,6 +331,8 @@ def main():
                         live.update(rpipins(options), refresh=True)
                     time.sleep(1.0 / options.fps)
             except KeyboardInterrupt:
+                options.live = False
+                live.update(rpipins(options), refresh=True)
                 return 0
     else:
         rich.print(rpipins(options))
