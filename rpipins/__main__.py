@@ -1,7 +1,7 @@
 #!/bin/env python3
 import os
-import stat
 import re
+import stat
 import subprocess
 import sys
 import time
