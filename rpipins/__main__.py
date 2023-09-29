@@ -41,8 +41,8 @@ SPI1 CE1 |          |GPIO 17|11|┃◎ ◎┃|12|GPIO 18|          |SPI1 CE0
          |          |GPIO 27|13|┃◎ ◎┃|14|Ground |          |
          |          |GPIO 22|15|┃◎ ◎┃|16|GPIO 23|          |
          |          |3v3    |17|┃◎ ◎┃|18|GPIO 24|          |
-SPI0 MISO|          |GPIO 10|19|┃◎ ◎┃|20|Ground |          |
-SPI0 MOSI|          |GPIO 9 |21|┃◎ ◎┃|22|GPIO 25|          |
+SPI0 MOSI|          |GPIO 10|19|┃◎ ◎┃|20|Ground |          |
+SPI0 MISO|          |GPIO 9 |21|┃◎ ◎┃|22|GPIO 25|          |
 SPI0 SCLK|          |GPIO 11|23|┃◎ ◎┃|24|GPIO 8 |          |SPI0 CE0
          |          |Ground |25|┃◎ ◎┃|26|GPIO 7 |          |SPI0 CE1
          |EEPROM SDA|GPIO 0 |27|┃◎ ◎┃|28|GPIO 1 |EEPROM SCL|
