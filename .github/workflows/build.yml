@@ -19,7 +19,9 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          path: rpipins
 
       - name: Set up Python ${{ matrix.python }}
         uses: actions/setup-python@v3
@@ -27,15 +29,29 @@ jobs:
           python-version: ${{ matrix.python }}
 
       - name: Install Dependencies
+        working-directory: rpipins
         run: |
           make dev-deps
 
       - name: Build Packages
+        working-directory: rpipins
         run: |
-          make dist
+          make build
 
       - name: Upload Packages
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.RELEASE_FILE }}
-          path: dist/
+          path: ${{ github.workspace }}/rpipins/dist/
+
+      - name: Build Debian Package
+        working-directory: rpipins
+        run: |
+          make deb-deps
+          make deb
+
+      - name: Upload Debian Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.RELEASE_FILE }} (deb)
+          path: ${{ github.workspace }}/*.deb
