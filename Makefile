@@ -18,7 +18,10 @@ endif
 	@echo "build:        build Python distribution files"
 	@echo "testdeploy:   build and upload to test PyPi"
 	@echo "deploy:       build and upload to PyPi"
-	@echo "tag:          tag the repository with the current version\n"
+	@echo "tag:          tag the repository with the current version"
+	@echo "deb-deps:     install debian packaging dependencies"
+	@echo "deb:          build a debian package"
+	@echo ""
 
 dev-deps:
 	python3 -m pip install -r requirements-dev.txt
@@ -50,3 +53,9 @@ testdeploy: build
 
 deploy: nopost build
 	twine upload dist/*
+
+deb-deps:
+	sudo apt install debhelper dh-python pybuild-plugin-pyproject python3-hatchling
+
+deb:
+	dpkg-buildpackage

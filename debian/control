@@ -1,0 +1,20 @@
+Source: rpipins
+Section: utils
+Priority: optional
+Maintainer: Phil <phil@gadgetoid.com>
+Rules-Requires-Root: no
+Build-Depends:
+ debhelper-compat (= 13), python3, pybuild-plugin-pyproject
+Standards-Version: 4.6.2
+X-Python3-Version: >= 3.7
+Homepage: https://github.com/pinout-xyz/rpipins
+Vcs-Browser: https://github.com/pinout-xyz/rpipins
+Vcs-Git: https://github.com/pinout-xyz/rpipins.git
+
+Package: rpipins
+Architecture: all
+Depends:
+ ${misc:Depends}, ${python3:Depends}, python3-rich (>= 13.3.1)
+Description: A command-line pinout for the Raspberry Pi 5
+ A beautiful GPIO pinout and pin function guide for the Raspberry Pi
+ with live pin config, drive and level monitoring.
