@@ -203,9 +203,6 @@ def styled(label, style, fg=None):
 def search(pin, highlight):
     if not highlight:
         return False
-    # Hack to make "--find adc" also find A0, A1, etc
-    if highlight.lower() == "adc":
-        highlight += "|a[0-9]"
     highlight = re.compile(highlight, re.I)
     # Match search term against pin label
     return re.search(highlight, pin) is not None
