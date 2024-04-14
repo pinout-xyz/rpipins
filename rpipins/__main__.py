@@ -1,4 +1,4 @@
-#!/bin/env python3
+#!/usr/bin/env python3
 import os
 import re
 import stat
@@ -64,9 +64,14 @@ RIGHT_PINS = [[col.strip() for col in row[RIGHT_COLS_START:]] for row in PINOUT]
 DIAGRAM = [row[LEFT_COLS_END] for row in PINOUT]
 
 COLS = ["pins", "gpio", "i2c", "spi"]
-DEBUG_COLS = ["consumer", "mode", "drive", "pull", "state"]
+DEBUG_COLS = ["consumer", "alt_func", "mode", "drive", "pull", "state"]
 NUM_DEBUG_COLS = len(DEBUG_COLS)
-NUM_PINS = 28
+NUM_GPIOS = 28
+
+# String-constants taken from:
+#   https://github.com/raspberrypi/utils/blob/master/pinctrl/gpiolib.c#L40
+#   https://github.com/raspberrypi/utils/blob/master/pinctrl/pinctrl.c#L121
+PINCTRL_REGEX = re.compile(r"^\s?(\d+): (a\d|\?\?|ip|op|gp|no) (dl|dh|\-\-|  ) (pn|pd|pu|\-\-) \| (lo|hi|\-\-) // (?:\w+/)?GPIO(\d+) = (\w+|\-)$")
 
 
 # Add empty slots for the GPIO debug data
@@ -78,36 +83,51 @@ for n in range(len(LEFT_PINS)):
 def get_gpio_char_device():
     for num in (4, 0):
         try:
-            if stat.S_ISCHR(os.stat(f"/dev/gpiochip{num}").st_mode):
-                return f"/dev/gpiochip{num}"
+            gpiochip_path = f"/dev/gpiochip{num}"
+            if stat.S_ISCHR(os.stat(gpiochip_path).st_mode):
+                return gpiochip_path
         except FileNotFoundError:
             continue
     return None
 
 
-def get_current_pin_states(device):
-    if hasattr(gpiod, "chip") and device is not None:
-        chip = gpiod.chip(device)
-        gpio_user = [line.consumer for line in gpiod.line_iter(chip) if line.offset < NUM_PINS]
-    elif hasattr(gpiod, "Chip") and device is not None:
-        chip = gpiod.Chip(device)
-        gpio_user = [line.consumer() for line in gpiod.LineIter(chip) if line.offset() < NUM_PINS]
+def get_current_pin_states(chip):
+    if chip is not None:
+        if hasattr(gpiod, "chip"):
+            gpio_user = [line.consumer for line in gpiod.line_iter(chip) if line.offset < NUM_GPIOS]
+        elif hasattr(gpiod, "Chip"):
+            gpio_user = [line.consumer() for line in gpiod.LineIter(chip) if line.offset() < NUM_GPIOS]
     else:
-        gpio_user = [""] * NUM_PINS
+        gpio_user = [""] * NUM_GPIOS
 
     try:
-        pinstate = subprocess.Popen(["pinctrl"], stdout=subprocess.PIPE)
-        states = [state.decode("utf8")[4:17].replace("    ", " -- ").replace(" | ", " ").split(" ") for state in pinstate.stdout.readlines()[:NUM_PINS]]
+        pinstate = subprocess.Popen(["pinctrl", "get", f"0-{NUM_GPIOS-1}"], stdout=subprocess.PIPE)
+        states = list()
+        for n, line in enumerate(pinstate.stdout.readlines()):
+            m = PINCTRL_REGEX.match(line.decode("utf8"))
+            if not m:
+                raise Exception(f"Unexpected value in pinctrl output: {line}")
+            gpio1 = int(m.group(1))
+            mode = m.group(2)
+            drive = m.group(3)
+            pull = m.group(4)
+            state = m.group(5)
+            gpio2 = int(m.group(6))
+            mode_name = m.group(7)
+            assert gpio1 == gpio2 == n
+            if mode == "no":
+                mode = "--"
+            if drive == "  ":
+                drive = "--"
+            if pull == "pn":
+                pull = "--"
+            alt_func = ""
+            if re.match(r"a\d", mode):
+                alt_func = mode_name
+            consumer = gpio_user[n] or ""
+            states.append([consumer, alt_func, mode, drive, pull, state])
     except FileNotFoundError:
-        states = ""
-
-    if len(states) != NUM_PINS:
-        return [["--"] * NUM_DEBUG_COLS] * NUM_PINS
-
-    for n, state in enumerate(states):
-        state[0] = "--" if state[0] == "no" else state[0]
-        state[2] = "--" if state[2] == "pn" else state[2]
-        state.insert(0, gpio_user[n] if gpio_user[n] is not None else "")
+        return [["--"] * NUM_DEBUG_COLS] * NUM_GPIOS
 
     return states
 
@@ -122,8 +142,8 @@ def gpio_add_line_state(gpio_states, row):
     return changed
 
 
-def gpio_update_line_states(device):
-    gpio_states = get_current_pin_states(device)
+def gpio_update_line_states(chip):
+    gpio_states = get_current_pin_states(chip)
     changed = False
 
     for row in LEFT_PINS:
@@ -150,6 +170,7 @@ THEME = {
     "panel_light": "#000000 on #fdf6e3",
     "diagram": "#555555",
     "consumer": "#989898",
+    "alt_func": "#989898",
     "mode": "#989898",
     "drive": "#989898",
     "pull": "#989898",
@@ -240,6 +261,8 @@ def build_row(row, show_indexes, highlight=None):
     diagram = list(DIAGRAM[row])
     if LEFT_PINS[row][-1] == "hi":
         diagram[1] = styled(diagram[1], "power")
+    if RIGHT_PINS[row][-1] == "hi":
+        diagram[3] = styled(diagram[3], "power")
     yield " " + "".join(diagram)
     # We can"t reverse a generator
     for pin in reversed(list(build_pins(RIGHT_PINS[row], show_indexes, highlight))):
@@ -337,15 +360,21 @@ def main():
     #rich.print(rpipins(Options(sys.argv)))
     options = Options(sys.argv)
 
+    chip = None
     device = get_gpio_char_device()
+    if device is not None:
+        if hasattr(gpiod, "chip"):
+            chip = gpiod.chip(device)
+        elif hasattr(gpiod, "Chip"):
+            chip = gpiod.Chip(device)
 
-    gpio_update_line_states(device)
+    gpio_update_line_states(chip)
 
     if options.live:
         with Live(rpipins(options), auto_refresh=True) as live:
             try:
                 while True:
-                    if gpio_update_line_states(device):
+                    if gpio_update_line_states(chip):
                         live.update(rpipins(options), refresh=True)
                     time.sleep(1.0 / options.fps)
             except KeyboardInterrupt:
