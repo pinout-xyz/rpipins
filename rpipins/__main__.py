@@ -78,8 +78,9 @@ for n in range(len(LEFT_PINS)):
 def get_gpio_char_device():
     for num in (4, 0):
         try:
-            if stat.S_ISCHR(os.stat(f"/dev/gpiochip{num}").st_mode):
-                return f"/dev/gpiochip{num}"
+            gpiochip_path = f"/dev/gpiochip{num}"
+            if stat.S_ISCHR(os.stat(gpiochip_path).st_mode):
+                return gpiochip_path
         except FileNotFoundError:
             continue
     return None
