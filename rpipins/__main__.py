@@ -64,7 +64,7 @@ RIGHT_PINS = [[col.strip() for col in row[RIGHT_COLS_START:]] for row in PINOUT]
 DIAGRAM = [row[LEFT_COLS_END] for row in PINOUT]
 
 COLS = ["pins", "gpio", "i2c", "spi"]
-DEBUG_COLS = ["consumer", "mode", "drive", "pull", "state"]
+DEBUG_COLS = ["consumer", "alt_func", "mode", "drive", "pull", "state"]
 NUM_DEBUG_COLS = len(DEBUG_COLS)
 NUM_GPIOS = 28
 
@@ -121,8 +121,11 @@ def get_current_pin_states(chip):
                 drive = "--"
             if pull == "pn":
                 pull = "--"
+            alt_func = ""
+            if re.match(r"a\d", mode):
+                alt_func = mode_name
             consumer = gpio_user[n] or ""
-            states.append([consumer, mode, drive, pull, state])
+            states.append([consumer, alt_func, mode, drive, pull, state])
     except FileNotFoundError:
         return [["--"] * NUM_DEBUG_COLS] * NUM_GPIOS
 
@@ -167,6 +170,7 @@ THEME = {
     "panel_light": "#000000 on #fdf6e3",
     "diagram": "#555555",
     "consumer": "#989898",
+    "alt_func": "#989898",
     "mode": "#989898",
     "drive": "#989898",
     "pull": "#989898",
