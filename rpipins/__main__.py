@@ -240,6 +240,8 @@ def build_row(row, show_indexes, highlight=None):
     diagram = list(DIAGRAM[row])
     if LEFT_PINS[row][-1] == "hi":
         diagram[1] = styled(diagram[1], "power")
+    if RIGHT_PINS[row][-1] == "hi":
+        diagram[3] = styled(diagram[3], "power")
     yield " " + "".join(diagram)
     # We can"t reverse a generator
     for pin in reversed(list(build_pins(RIGHT_PINS[row], show_indexes, highlight))):
