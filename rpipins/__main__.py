@@ -66,7 +66,7 @@ DIAGRAM = [row[LEFT_COLS_END] for row in PINOUT]
 COLS = ["pins", "gpio", "i2c", "spi"]
 DEBUG_COLS = ["consumer", "mode", "drive", "pull", "state"]
 NUM_DEBUG_COLS = len(DEBUG_COLS)
-NUM_PINS = 28
+NUM_GPIOS = 28
 
 
 # Add empty slots for the GPIO debug data
@@ -88,20 +88,20 @@ def get_gpio_char_device():
 def get_current_pin_states(chip):
     if chip is not None:
         if hasattr(gpiod, "chip"):
-            gpio_user = [line.consumer for line in gpiod.line_iter(chip) if line.offset < NUM_PINS]
+            gpio_user = [line.consumer for line in gpiod.line_iter(chip) if line.offset < NUM_GPIOS]
         elif hasattr(gpiod, "Chip"):
-            gpio_user = [line.consumer() for line in gpiod.LineIter(chip) if line.offset() < NUM_PINS]
+            gpio_user = [line.consumer() for line in gpiod.LineIter(chip) if line.offset() < NUM_GPIOS]
     else:
-        gpio_user = [""] * NUM_PINS
+        gpio_user = [""] * NUM_GPIOS
 
     try:
         pinstate = subprocess.Popen(["pinctrl"], stdout=subprocess.PIPE)
-        states = [state.decode("utf8")[4:17].replace("    ", " -- ").replace(" | ", " ").split(" ") for state in pinstate.stdout.readlines()[:NUM_PINS]]
+        states = [state.decode("utf8")[4:17].replace("    ", " -- ").replace(" | ", " ").split(" ") for state in pinstate.stdout.readlines()[:NUM_GPIOS]]
     except FileNotFoundError:
         states = ""
 
-    if len(states) != NUM_PINS:
-        return [["--"] * NUM_DEBUG_COLS] * NUM_PINS
+    if len(states) != NUM_GPIOS:
+        return [["--"] * NUM_DEBUG_COLS] * NUM_GPIOS
 
     for n, state in enumerate(states):
         state[0] = "--" if state[0] == "no" else state[0]
