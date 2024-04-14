@@ -68,6 +68,11 @@ DEBUG_COLS = ["consumer", "mode", "drive", "pull", "state"]
 NUM_DEBUG_COLS = len(DEBUG_COLS)
 NUM_GPIOS = 28
 
+# String-constants taken from:
+#   https://github.com/raspberrypi/utils/blob/master/pinctrl/gpiolib.c#L40
+#   https://github.com/raspberrypi/utils/blob/master/pinctrl/pinctrl.c#L121
+PINCTRL_REGEX = re.compile(r"^\s?(\d+): (a\d|\?\?|ip|op|gp|no) (dl|dh|\-\-|  ) (pn|pd|pu|\-\-) \| (lo|hi|\-\-) // (?:\w+/)?GPIO(\d+) = (\w+|\-)$")
+
 
 # Add empty slots for the GPIO debug data
 for n in range(len(LEFT_PINS)):
@@ -97,17 +102,29 @@ def get_current_pin_states(chip):
 
     try:
         pinstate = subprocess.Popen(["pinctrl", "get", f"0-{NUM_GPIOS-1}"], stdout=subprocess.PIPE)
-        states = [state.decode("utf8")[4:17].replace("    ", " -- ").replace(" | ", " ").split(" ") for state in pinstate.stdout.readlines()[:NUM_GPIOS]]
+        states = list()
+        for n, line in enumerate(pinstate.stdout.readlines()):
+            m = PINCTRL_REGEX.match(line.decode("utf8"))
+            if not m:
+                raise Exception(f"Unexpected value in pinctrl output: {line}")
+            gpio1 = int(m.group(1))
+            mode = m.group(2)
+            drive = m.group(3)
+            pull = m.group(4)
+            state = m.group(5)
+            gpio2 = int(m.group(6))
+            mode_name = m.group(7)
+            assert gpio1 == gpio2 == n
+            if mode == "no":
+                mode = "--"
+            if drive == "  ":
+                drive = "--"
+            if pull == "pn":
+                pull = "--"
+            consumer = gpio_user[n] or ""
+            states.append([consumer, mode, drive, pull, state])
     except FileNotFoundError:
-        states = ""
-
-    if len(states) != NUM_GPIOS:
         return [["--"] * NUM_DEBUG_COLS] * NUM_GPIOS
-
-    for n, state in enumerate(states):
-        state[0] = "--" if state[0] == "no" else state[0]
-        state[2] = "--" if state[2] == "pn" else state[2]
-        state.insert(0, gpio_user[n] if gpio_user[n] is not None else "")
 
     return states
 
