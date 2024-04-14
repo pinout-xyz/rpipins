@@ -85,13 +85,12 @@ def get_gpio_char_device():
     return None
 
 
-def get_current_pin_states(device):
-    if hasattr(gpiod, "chip") and device is not None:
-        chip = gpiod.chip(device)
-        gpio_user = [line.consumer for line in gpiod.line_iter(chip) if line.offset < NUM_PINS]
-    elif hasattr(gpiod, "Chip") and device is not None:
-        chip = gpiod.Chip(device)
-        gpio_user = [line.consumer() for line in gpiod.LineIter(chip) if line.offset() < NUM_PINS]
+def get_current_pin_states(chip):
+    if chip is not None:
+        if hasattr(gpiod, "chip"):
+            gpio_user = [line.consumer for line in gpiod.line_iter(chip) if line.offset < NUM_PINS]
+        elif hasattr(gpiod, "Chip"):
+            gpio_user = [line.consumer() for line in gpiod.LineIter(chip) if line.offset() < NUM_PINS]
     else:
         gpio_user = [""] * NUM_PINS
 
@@ -122,8 +121,8 @@ def gpio_add_line_state(gpio_states, row):
     return changed
 
 
-def gpio_update_line_states(device):
-    gpio_states = get_current_pin_states(device)
+def gpio_update_line_states(chip):
+    gpio_states = get_current_pin_states(chip)
     changed = False
 
     for row in LEFT_PINS:
@@ -337,15 +336,21 @@ def main():
     #rich.print(rpipins(Options(sys.argv)))
     options = Options(sys.argv)
 
+    chip = None
     device = get_gpio_char_device()
+    if device is not None:
+        if hasattr(gpiod, "chip"):
+            chip = gpiod.chip(device)
+        elif hasattr(gpiod, "Chip"):
+            chip = gpiod.Chip(device)
 
-    gpio_update_line_states(device)
+    gpio_update_line_states(chip)
 
     if options.live:
         with Live(rpipins(options), auto_refresh=True) as live:
             try:
                 while True:
-                    if gpio_update_line_states(device):
+                    if gpio_update_line_states(chip):
                         live.update(rpipins(options), refresh=True)
                     time.sleep(1.0 / options.fps)
             except KeyboardInterrupt:
