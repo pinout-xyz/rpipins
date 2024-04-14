@@ -96,7 +96,7 @@ def get_current_pin_states(chip):
         gpio_user = [""] * NUM_GPIOS
 
     try:
-        pinstate = subprocess.Popen(["pinctrl"], stdout=subprocess.PIPE)
+        pinstate = subprocess.Popen(["pinctrl", "get", f"0-{NUM_GPIOS-1}"], stdout=subprocess.PIPE)
         states = [state.decode("utf8")[4:17].replace("    ", " -- ").replace(" | ", " ").split(" ") for state in pinstate.stdout.readlines()[:NUM_GPIOS]]
     except FileNotFoundError:
         states = ""
