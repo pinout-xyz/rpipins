@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - main
+  release:
+    types: [created]
 
 jobs:
   test:
@@ -21,6 +23,8 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          path: rpipins
 
       - name: Set up Python ${{ matrix.python }}
         uses: actions/setup-python@v5
@@ -28,10 +32,12 @@ jobs:
           python-version: ${{ matrix.python }}
 
       - name: Install Dependencies
+        working-directory: rpipins
         run: |
           make dev-deps
 
       - name: Build Packages
+        working-directory: rpipins
         run: |
           make build
 
@@ -39,4 +45,30 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.RELEASE_FILE }}
-          path: dist/
+          path: ${{ github.workspace }}/rpipins/dist/
+
+      - name: Build Debian Package
+        if: matrix.python == '3.11'
+        working-directory: rpipins
+        run: |
+          echo "DEB_VERSION=`hatchling version`" >> "$GITHUB_ENV"
+          make deb-deps
+          make deb
+
+      - name: Upload Debian Package
+        if: matrix.python == '3.11'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpipins_${{ env.DEB_VERSION }}_all.deb
+          path: ${{ github.workspace }}/rpipins_${{ env.DEB_VERSION }}_all.deb
+
+      - name: Upload Debian Package
+        if: github.event_name == 'release' && matrix.python == '3.11'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          asset_path: ${{ github.workspace }}/rpipins_${{ env.DEB_VERSION }}_all.deb
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_name: rpipins_${{ env.DEB_VERSION }}_all.deb
+          asset_content_type: application/octet-stream

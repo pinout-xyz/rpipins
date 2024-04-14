@@ -18,3 +18,8 @@ library/debian/
 .coverage
 .pytest_cache
 .tox
+debian/*.substvars
+debian/*.debhelper
+debian/.debhelper/
+debian/rpipins
+debian/files
