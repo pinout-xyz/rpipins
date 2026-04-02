@@ -89,15 +89,17 @@ def get_current_pin_states(device):
     if hasattr(gpiod, "chip") and device is not None:
         chip = gpiod.chip(device)
         gpio_user = [line.consumer for line in gpiod.line_iter(chip) if line.offset < NUM_PINS]
+        chip.close()
     elif hasattr(gpiod, "Chip") and device is not None:
         chip = gpiod.Chip(device)
         gpio_user = [line.consumer() for line in gpiod.LineIter(chip) if line.offset() < NUM_PINS]
+        chip.close()
     else:
         gpio_user = [""] * NUM_PINS
 
     try:
-        pinstate = subprocess.Popen(["pinctrl"], stdout=subprocess.PIPE)
-        states = [state.decode("utf8")[4:17].replace("    ", " -- ").replace(" | ", " ").split(" ") for state in pinstate.stdout.readlines()[:NUM_PINS]]
+        result = subprocess.run(["pinctrl"], stdout=subprocess.PIPE)
+        states = [state.decode("utf8")[4:17].replace("    ", " -- ").replace(" | ", " ").split(" ") for state in result.stdout.splitlines()[:NUM_PINS]]
     except FileNotFoundError:
         states = ""
 
