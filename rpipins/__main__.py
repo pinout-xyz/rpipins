@@ -203,7 +203,7 @@ def styled(label, style, fg=None):
 def search(pin, highlight):
     if not highlight:
         return False
-    highlight = re.compile(highlight, re.I)
+    highlight = re.compile(highlight, re.IGNORECASE)
     # Match search term against pin label
     return re.search(highlight, pin) is not None
 
@@ -289,7 +289,7 @@ def rpipins(opts):
         style=THEME["panel_light"] if opts.light_mode else THEME["panel"])
 
 
-class Options():
+class Options:
     def __init__(self, argv):
         self.name = argv.pop(0)
 
